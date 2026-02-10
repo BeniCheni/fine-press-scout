@@ -13,10 +13,12 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f qdrant",
-    "prepare": "husky"
+    "prepare": "husky",
+    "ingest": "dotenv -e .env.local -- tsx scripts/ingest.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.26",
+    "@huggingface/inference": "^4.13.11",
     "@qdrant/js-client-rest": "^1.16.2",
     "ai": "^6.0.77",
     "cheerio": "^1.2.0",
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/cheerio": "^0.22.35",
     "@types/node": "^20.19.33",
     "@types/react": "^19",
     "@types/react-dom": "^19",
