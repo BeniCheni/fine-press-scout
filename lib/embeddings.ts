@@ -1,52 +1,68 @@
-import { InferenceClient } from '@huggingface/inference';
-import { validateEnv } from '@/types';
+import { HfInference } from '@huggingface/inference';
 
-const env = validateEnv();
+const HF_API_TOKEN = process.env.HUGGINGFACE_API_TOKEN || '';
+const HF_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 
-const EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
-const client = new InferenceClient(env.HUGGINGFACE_API_KEY);
+const hf = new HfInference(HF_API_TOKEN);
 
 /**
- * Embed a single text string.
+ * Embed a single text string using HuggingFace Inference API
  */
 export async function embedText(text: string): Promise<number[]> {
-  const batch = await embedBatch([text]);
-  return batch[0];
+  if (!text.trim()) {
+    throw new Error('Cannot embed empty text');
+  }
+
+  const embeddings = await embedBatch([text]);
+  return embeddings[0];
 }
 
 /**
- * Embed multiple texts in a single batch request.
- * Uses Hugging Face Inference Providers (router) via @huggingface/inference.
+ * Embed multiple texts in batch with retry logic for rate limits
  */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
-  const maxRetries = 5;
-  let lastError: Error | null = null;
+  if (texts.length === 0) {
+    return [];
+  }
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  let lastError: Error | undefined;
+  const maxRetries = 3;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const result = await client.featureExtraction({
-        model: EMBEDDING_MODEL,
+      const embeddings = await hf.featureExtraction({
+        model: HF_MODEL,
         inputs: texts,
-        provider: 'hf-inference',
       });
 
-      return result as number[][];
+      if (!Array.isArray(embeddings) || embeddings.length === 0) {
+        throw new Error('Invalid response from HuggingFace API');
+      }
+
+      for (const embedding of embeddings) {
+        if (!Array.isArray(embedding) || embedding.length !== 384) {
+          throw new Error(
+            `Wrong embedding dimension. Expected 384, got ${Array.isArray(embedding) ? embedding.length : 'non-array'}`
+          );
+        }
+      }
+
+      console.log(`Embedded ${texts.length} text(s) successfully`);
+      return embeddings as number[][];
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      const isRateLimit =
-        lastError.message.includes('429') ||
-        lastError.message.includes('rate limit');
-      if (isRateLimit && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
+      lastError = error instanceof Error ? error : new Error('Unknown error');
+
+      if (attempt < maxRetries - 1) {
+        const delay = 2000 * Math.pow(2, attempt);
         console.warn(
-          `HuggingFace rate limit. Retry ${attempt}/${maxRetries} after ${delay}ms`
+          `Embedding failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms...`
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
-        continue;
       }
-      throw lastError;
     }
   }
 
-  throw lastError ?? new Error('embedBatch failed unexpectedly');
+  throw new Error(
+    `Embedding failed after ${maxRetries} attempts: ${lastError?.message}`
+  );
 }

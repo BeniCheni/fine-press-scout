@@ -127,8 +127,6 @@ export async function scrapeSubterranean(): Promise<Document[]> {
   try {
     await page.goto(STORE_URL, { waitUntil: 'domcontentloaded' });
     console.log('Page loaded, looking for products and Load More button...');
-
-    // Try different possible selectors for the Load More button
     const loadMoreSelectors = [
       'button:has-text("Load More")',
       'button:has-text("Show More")',
@@ -146,7 +144,6 @@ export async function scrapeSubterranean(): Promise<Document[]> {
     const maxClicks = 100; // Safety limit to prevent infinite loops
 
     while (clickCount < maxClicks) {
-      // Try each selector to find the Load More button
       let loadMoreButton = null;
 
       for (const selector of loadMoreSelectors) {
@@ -170,7 +167,6 @@ export async function scrapeSubterranean(): Promise<Document[]> {
       console.log(`Clicking Load More button (click ${clickCount + 1})...`);
 
       try {
-        // Get current product count before clicking
         const productCountBefore = await page
           .locator(
             '.product-item, .product, .store-item, article[itemtype*="Product"]'
