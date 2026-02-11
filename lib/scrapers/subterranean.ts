@@ -1,9 +1,9 @@
-import * as cheerio from "cheerio";
-import { Document, DocumentSchema } from "@/types";
-import crypto from "crypto";
-import { chromium } from "playwright";
+import * as cheerio from 'cheerio';
+import { Document, DocumentSchema } from '@/types';
+import crypto from 'crypto';
+import { chromium } from 'playwright';
 
-const BASE_URL = "https://subterraneanpress.com";
+const BASE_URL = 'https://subterraneanpress.com';
 const STORE_URL = `${BASE_URL}/all-books`;
 
 /**
@@ -11,9 +11,9 @@ const STORE_URL = `${BASE_URL}/all-books`;
  */
 function generateId(url: string, title: string): string {
   return crypto
-    .createHash("sha256")
+    .createHash('sha256')
     .update(`${url}:${title}`)
-    .digest("hex")
+    .digest('hex')
     .substring(0, 16);
 }
 
@@ -22,19 +22,19 @@ function generateId(url: string, title: string): string {
  */
 function parsePrice(priceText: string): {
   price?: number;
-  availability: "in_print" | "sold_out" | "preorder";
+  availability: 'in_print' | 'sold_out' | 'preorder';
 } {
   const normalized = priceText.trim().toLowerCase();
 
-  if (normalized.includes("out of print") || normalized.includes("sold out")) {
-    return { availability: "sold_out" };
+  if (normalized.includes('out of print') || normalized.includes('sold out')) {
+    return { availability: 'sold_out' };
   }
 
-  if (normalized.includes("pre-order") || normalized.includes("preorder")) {
+  if (normalized.includes('pre-order') || normalized.includes('preorder')) {
     const match = normalized.match(/\$(\d+(?:\.\d{2})?)/);
     return {
       price: match ? parseFloat(match[1]) : undefined,
-      availability: "preorder",
+      availability: 'preorder',
     };
   }
 
@@ -42,11 +42,11 @@ function parsePrice(priceText: string): {
   if (match) {
     return {
       price: parseFloat(match[1]),
-      availability: "in_print",
+      availability: 'in_print',
     };
   }
 
-  return { availability: "in_print" };
+  return { availability: 'in_print' };
 }
 
 /**
@@ -56,26 +56,26 @@ function parsePrice(priceText: string): {
 function inferEditionType(
   title: string,
   description: string
-): "trade" | "limited" | "lettered" | "artist" | undefined {
+): 'trade' | 'limited' | 'lettered' | 'artist' | undefined {
   const combined = `${title} ${description}`.toLowerCase();
 
-  if (combined.includes("lettered")) return "lettered";
-  if (combined.includes("limited edition")) return "limited";
-  if (combined.includes("artist edition")) return "artist";
+  if (combined.includes('lettered')) return 'lettered';
+  if (combined.includes('limited edition')) return 'limited';
+  if (combined.includes('artist edition')) return 'artist';
   if (
-    combined.includes("signed") ||
-    combined.includes("numbered") ||
-    combined.includes("slipcased")
+    combined.includes('signed') ||
+    combined.includes('numbered') ||
+    combined.includes('slipcased')
   ) {
-    return "limited";
+    return 'limited';
   }
   if (
-    combined.includes("trade edition") ||
-    combined.includes("trade hardcover") ||
-    combined.includes("trade paperback") ||
-    combined.includes("trade")
+    combined.includes('trade edition') ||
+    combined.includes('trade hardcover') ||
+    combined.includes('trade paperback') ||
+    combined.includes('trade')
   ) {
-    return "trade";
+    return 'trade';
   }
 
   return undefined;
@@ -120,13 +120,13 @@ export async function scrapeSubterranean(): Promise<Document[]> {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     userAgent:
-      "FinePressScout/1.0 (https://github.com/benicheni/fine-press-scout)",
+      'FinePressScout/1.0 (https://github.com/benicheni/fine-press-scout)',
   });
   const page = await context.newPage();
 
   try {
-    await page.goto(STORE_URL, { waitUntil: "domcontentloaded" });
-    console.log("Page loaded, looking for products and Load More button...");
+    await page.goto(STORE_URL, { waitUntil: 'domcontentloaded' });
+    console.log('Page loaded, looking for products and Load More button...');
 
     // Try different possible selectors for the Load More button
     const loadMoreSelectors = [
@@ -134,8 +134,8 @@ export async function scrapeSubterranean(): Promise<Document[]> {
       'button:has-text("Show More")',
       'a:has-text("Load More")',
       'a:has-text("Show More")',
-      ".load-more",
-      "#load-more",
+      '.load-more',
+      '#load-more',
       '[class*="load-more"]',
       '[class*="show-more"]',
       'button[class*="load"]',
@@ -148,24 +148,22 @@ export async function scrapeSubterranean(): Promise<Document[]> {
     while (clickCount < maxClicks) {
       // Try each selector to find the Load More button
       let loadMoreButton = null;
-      let workingSelector = null;
 
       for (const selector of loadMoreSelectors) {
         try {
           const button = page.locator(selector).first();
           if (await button.isVisible({ timeout: 2000 })) {
             loadMoreButton = button;
-            workingSelector = selector;
             break;
           }
         } catch {
-          // Button not found with this selector, try next
+          // Button isn't found with this selector, try next
           continue;
         }
       }
 
       if (!loadMoreButton) {
-        console.log("No more Load More button found. All content loaded.");
+        console.log('No more Load More button found. All content loaded.');
         break;
       }
 
@@ -197,13 +195,15 @@ export async function scrapeSubterranean(): Promise<Document[]> {
 
           // Add a small delay to ensure all content is rendered
           await page.waitForTimeout(1000);
-        } catch {
-          console.log("No new products loaded, assuming end of content.");
+        } catch (error) {
+          console.log(
+            `No new products loaded, assuming end of content: ${JSON.stringify(error, null, 2)}.`
+          );
           break;
         }
       } catch (error) {
         console.log(
-          "Could not click Load More button, assuming end of content."
+          `Could not click Load More button, assuming end of content${JSON.stringify(error, null, 2)}.`
         );
         break;
       }
@@ -218,7 +218,7 @@ export async function scrapeSubterranean(): Promise<Document[]> {
     console.log(
       `Finished loading content after ${clickCount} Load More clicks.`
     );
-    console.log("Extracting HTML for parsing...");
+    console.log('Extracting HTML for parsing...');
 
     const html = await page.content();
     await browser.close();
@@ -237,14 +237,14 @@ export async function scrapeSubterranean(): Promise<Document[]> {
 
     // Generic selectors that might work (inspect actual site to refine):
     const productSelectors = [
-      ".product-item",
-      ".product",
-      ".store-item",
+      '.product-item',
+      '.product',
+      '.store-item',
       'article[itemtype*="Product"]',
       // '.woocommerce-LoopProduct-link', // If using WooCommerce
     ];
 
-    let $products = $();
+    let $products = $('');
     for (const selector of productSelectors) {
       $products = $(selector);
       if ($products.length > 0) {
@@ -257,7 +257,7 @@ export async function scrapeSubterranean(): Promise<Document[]> {
 
     if ($products.length === 0) {
       console.warn(
-        "No products found. The site structure may have changed. Inspect the HTML and adjust selectors in /lib/scrapers/subterranean.ts"
+        'No products found. The site structure may have changed. Inspect the HTML and adjust selectors in /lib/scrapers/subterranean.ts'
       );
       return documents;
     }
@@ -267,35 +267,35 @@ export async function scrapeSubterranean(): Promise<Document[]> {
         const $el = $(element);
 
         const title =
-          $el.find("h2 a").text().trim() ||
-          $el.find("h3 a").text().trim() ||
-          $el.find("a.product-title").text().trim() ||
-          $el.find(".product-name").text().trim();
+          $el.find('h2 a').text().trim() ||
+          $el.find('h3 a').text().trim() ||
+          $el.find('a.product-title').text().trim() ||
+          $el.find('.product-name').text().trim();
 
         if (!title) return;
 
         const relativeUrl =
-          $el.find("h2 a").attr("href") ||
-          $el.find("h3 a").attr("href") ||
-          $el.find("a").first().attr("href");
+          $el.find('h2 a').attr('href') ||
+          $el.find('h3 a').attr('href') ||
+          $el.find('a').first().attr('href');
 
         if (!relativeUrl) return;
 
-        const url = relativeUrl.startsWith("http")
+        const url = relativeUrl.startsWith('http')
           ? relativeUrl
-          : `${BASE_URL}${relativeUrl.startsWith("/") ? "" : "/"}${relativeUrl}`;
+          : `${BASE_URL}${relativeUrl.startsWith('/') ? '' : '/'}${relativeUrl}`;
 
         const priceText =
-          $el.find(".price").text().trim() ||
+          $el.find('.price').text().trim() ||
           $el.find('[class*="price"]').text().trim() ||
           $el.find('span[itemprop="price"]').text().trim();
 
         const { price, availability } = parsePrice(priceText);
 
         const description =
-          $el.find(".product-description").text().trim() ||
-          $el.find("p").first().text().trim() ||
-          "";
+          $el.find('.product-description').text().trim() ||
+          $el.find('p').first().text().trim() ||
+          '';
 
         // author may be in title like "Book Title by Author Name"
         const authorMatch = title.match(/by\s+(.+)$/i);
@@ -310,11 +310,11 @@ export async function scrapeSubterranean(): Promise<Document[]> {
           id: generateId(url, title),
           title,
           author,
-          publisher: "Subterranean Press",
+          publisher: 'Subterranean Press',
           url,
           description,
           price,
-          currency: price !== undefined ? "USD" : undefined,
+          currency: price !== undefined ? 'USD' : undefined,
           editionType,
           limitation,
           availability,
@@ -330,7 +330,7 @@ export async function scrapeSubterranean(): Promise<Document[]> {
           console.warn(`Validation failed for "${title}":`, validated.error);
         }
       } catch (error) {
-        console.error("Error parsing product:", error);
+        console.error('Error parsing product:', error);
       }
     });
 

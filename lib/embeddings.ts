@@ -1,9 +1,9 @@
-import { InferenceClient } from "@huggingface/inference";
-import { validateEnv } from "@/types";
+import { InferenceClient } from '@huggingface/inference';
+import { validateEnv } from '@/types';
 
 const env = validateEnv();
 
-const EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2";
+const EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 const client = new InferenceClient(env.HUGGINGFACE_API_KEY);
 
 /**
@@ -27,15 +27,15 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
       const result = await client.featureExtraction({
         model: EMBEDDING_MODEL,
         inputs: texts,
-        provider: "hf-inference",
+        provider: 'hf-inference',
       });
 
       return result as number[][];
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       const isRateLimit =
-        lastError.message.includes("429") ||
-        lastError.message.includes("rate limit");
+        lastError.message.includes('429') ||
+        lastError.message.includes('rate limit');
       if (isRateLimit && attempt < maxRetries) {
         const delay = Math.pow(2, attempt) * 1000;
         console.warn(
@@ -48,5 +48,5 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     }
   }
 
-  throw lastError ?? new Error("embedBatch failed unexpectedly");
+  throw lastError ?? new Error('embedBatch failed unexpectedly');
 }

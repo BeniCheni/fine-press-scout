@@ -1,5 +1,5 @@
-import { QdrantClient } from "@qdrant/js-client-rest";
-import { validateEnv } from "@/types";
+import { QdrantClient } from '@qdrant/js-client-rest';
+import { validateEnv } from '@/types';
 
 const env = validateEnv();
 
@@ -8,7 +8,7 @@ export const qdrantClient = new QdrantClient({
   // TODO: Add authentication to Qdrant later, include apiKey here
 });
 
-export const COLLECTION_NAME = "fine_press_books";
+export const COLLECTION_NAME = 'fine_press_books';
 export const VECTOR_SIZE = 384; // all-MiniLM-L6-v2 dimension
 
 /**
@@ -30,7 +30,7 @@ export async function initCollection(): Promise<void> {
     await qdrantClient.createCollection(COLLECTION_NAME, {
       vectors: {
         size: VECTOR_SIZE,
-        distance: "Cosine",
+        distance: 'Cosine',
       },
       // Optimize for search speed with HNSW index
       hnsw_config: {
@@ -44,28 +44,28 @@ export async function initCollection(): Promise<void> {
     // Create payload indexes for filtering (publisher, price, editionType, availability)
     // These enable fast metadata filtering at query time
     await qdrantClient.createPayloadIndex(COLLECTION_NAME, {
-      field_name: "publisher",
-      field_schema: "keyword",
+      field_name: 'publisher',
+      field_schema: 'keyword',
     });
 
     await qdrantClient.createPayloadIndex(COLLECTION_NAME, {
-      field_name: "editionType",
-      field_schema: "keyword",
+      field_name: 'editionType',
+      field_schema: 'keyword',
     });
 
     await qdrantClient.createPayloadIndex(COLLECTION_NAME, {
-      field_name: "availability",
-      field_schema: "keyword",
+      field_name: 'availability',
+      field_schema: 'keyword',
     });
 
     await qdrantClient.createPayloadIndex(COLLECTION_NAME, {
-      field_name: "price",
-      field_schema: "float",
+      field_name: 'price',
+      field_schema: 'float',
     });
 
     console.log(`✓ Created payload indexes for filtering`);
   } catch (error) {
-    console.error("Failed to initialize Qdrant collection:", error);
+    console.error('Failed to initialize Qdrant collection:', error);
     throw error;
   }
 }
@@ -94,7 +94,7 @@ export async function upsertChunks(
     } catch (error) {
       attempt++;
       if (attempt >= maxRetries) {
-        console.error("Failed to upsert chunks after retries:", error);
+        console.error('Failed to upsert chunks after retries:', error);
         throw error;
       }
       // Exponential backoff: 1s, 2s, 4s

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const DocumentSchema = z.object({
   id: z.string(),
@@ -9,9 +9,9 @@ export const DocumentSchema = z.object({
   description: z.string().optional(),
   price: z.number().optional(),
   currency: z.string().optional(),
-  editionType: z.enum(["trade", "limited", "lettered", "artist"]).optional(),
+  editionType: z.enum(['trade', 'limited', 'lettered', 'artist']).optional(),
   limitation: z.string().optional(),
-  availability: z.enum(["in_print", "sold_out", "preorder"]).optional(),
+  availability: z.enum(['in_print', 'sold_out', 'preorder']).optional(),
   genreTags: z.array(z.string()).optional(),
   illustrator: z.string().optional(),
   binding: z.string().optional(),
@@ -61,13 +61,13 @@ export function validateEnv() {
 
   if (!result.success) {
     console.error(
-      "Environment validation failed:",
+      'Environment validation failed:',
       z.prettifyError(result.error)
     );
     throw new Error(
       `Missing or invalid environment variables: ${result.error.issues
-        .map((i) => i.path.join("."))
-        .join(", ")}`
+        .map((i) => i.path.join('.'))
+        .join(', ')}`
     );
   }
 
