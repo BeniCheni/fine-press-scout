@@ -42,3 +42,25 @@ export const ChunkSchema = z.object({
 });
 
 export type Chunk = z.infer<typeof ChunkSchema>;
+
+export interface SearchResult {
+  id: string;
+  score: number;
+  payload: {
+    title: string;
+    author: string;
+    publisher: string;
+    url: string;
+    price?: number;
+    currency?: string;
+    availability?: string;
+    edition_type?: string;
+    description: string;
+  };
+}
+
+export interface SearchParams {
+  vector: number[];
+  limit: number;
+  filter?: Record<string, unknown>;
+}
