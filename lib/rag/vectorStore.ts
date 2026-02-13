@@ -83,11 +83,6 @@ function filterByAuthor(
   const filtered = results.filter((result) => {
     const resultAuthor = result.payload.author || '';
     const similarity = calculateStringSimilarity(authorName, resultAuthor);
-    if (similarity > 0) {
-      console.log(
-        `  Comparing "${authorName}" vs "${resultAuthor}": similarity=${similarity.toFixed(2)}, matches=${similarity >= threshold}`
-      );
-    }
     return similarity >= threshold;
   });
   return filtered;
