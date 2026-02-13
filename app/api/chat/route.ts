@@ -14,7 +14,7 @@ const openrouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
 
-const MISTRAL_7B_INSTRUCT_FREE = 'openai/gpt-3.5-turbo';
+const AURORA_ALPHA = 'openrouter/aurora-alpha';
 
 export async function POST(req: Request) {
   try {
@@ -22,10 +22,125 @@ export async function POST(req: Request) {
     const { message } = MessageSchema.parse(body);
 
     const queryEmbedding: number[] = await embedText(message);
+    const pricePatterns = [
+      {
+        regex: /(?:exactly|equals?)\s+\$?(\d+(?:\.\d{1,2})?)/i,
+        operator: 'eq',
+      },
+      {
+        regex: /(?:at\s+most|maximum)\s+\$?(\d+(?:\.\d{1,2})?)/i,
+        operator: 'lte',
+      },
+      {
+        regex: /(?:at\s+least|minimum)\s+\$?(\d+(?:\.\d{1,2})?)/i,
+        operator: 'gte',
+      },
+      {
+        regex: /(?:under|less\s+than|below)\s+\$?(\d+(?:\.\d{1,2})?)/i,
+        operator: 'lte',
+      },
+      {
+        regex: /(?:over|more\s+than|above)\s+\$?(\d+(?:\.\d{1,2})?)/i,
+        operator: 'gte',
+      },
+    ];
+
+    let priceFilter;
+    for (const pattern of pricePatterns) {
+      const match = message.match(pattern.regex);
+      if (match) {
+        const price = parseFloat(match[1]);
+        const rangeConstraints: Record<string, number> = {};
+
+        if (pattern.operator === 'lte') {
+          rangeConstraints.lte = price;
+        } else if (pattern.operator === 'gte') {
+          rangeConstraints.gte = price;
+        } else if (pattern.operator === 'eq') {
+          rangeConstraints.gte = price;
+          rangeConstraints.lte = price;
+        }
+
+        priceFilter = {
+          must: [
+            {
+              key: 'price',
+              range: rangeConstraints,
+            },
+          ],
+        };
+        break;
+      }
+    }
+
+    // Parse limit from the message (e.g., "top 5", "show me 20", "find the top 15 results")
+    const limitPatterns = [
+      {
+        regex:
+          /(?:top|first|show me|give me|find|list)\s+(?:the\s+)?(?:top\s+)?(\d+)/i,
+      },
+      { regex: /\b(\d+)\s+(?:results?|books?|items?)/i },
+    ];
+
+    let resultLimit = 10;
+    for (const pattern of limitPatterns) {
+      const match = message.match(pattern.regex);
+      if (match) {
+        const parsedLimit = parseInt(match[1], 10);
+        if (parsedLimit > 0 && parsedLimit <= 100) {
+          resultLimit = parsedLimit;
+          break;
+        }
+      }
+    }
+
+    // Parse author from the message (e.g., "by Neal Stephenson", "author: H.P. Lovecraft", "written by Stephen King")
+    // Matches author names including those with initials (e.g., "H.P. Lovecraft", "J.R.R. Tolkien")
+    let authorFilter;
+    const authorMatch =
+      message.match(
+        /\bby\s+([A-Z][a-z]+(?: [A-Z][a-z]+)*(?:\s+[A-Z]\.? ?[A-Z]+\.?)*)/i
+      ) ||
+      message.match(
+        /\bfrom\s+([A-Z][a-z]+(?: [A-Z][a-z]+)*(?:\s+[A-Z]\.? ?[A-Z]+\.?)*)/i
+      ) ||
+      message.match(
+        /\b(?:author|writer):\s*([A-Z][a-z]+(?: [A-Z][a-z]+)*(?:\s+[A-Z]\.? ?[A-Z]+\.?)*)/i
+      ) ||
+      message.match(
+        /\bwritten\s+by\s+([A-Z][a-z]+(?: [A-Z][a-z]+)*(?:\s+[A-Z]\.? ?[A-Z]+\.?)*)/i
+      );
+
+    if (authorMatch) {
+      const authorName = authorMatch[1].trim();
+      authorFilter = {
+        must: [
+          {
+            key: 'author',
+            match: {
+              text: authorName,
+            },
+          },
+        ],
+      };
+    }
+
+    let combinedFilter;
+    if (priceFilter && authorFilter) {
+      combinedFilter = {
+        must: [...priceFilter.must, ...authorFilter.must],
+      };
+    } else if (priceFilter) {
+      combinedFilter = priceFilter;
+    } else if (authorFilter) {
+      combinedFilter = authorFilter;
+    }
 
     const searchResults = await searchVectors({
       vector: queryEmbedding,
-      limit: 5,
+      limit: resultLimit,
+      filter: combinedFilter,
+      sortBy: 'price_desc',
     });
 
     const contextString = buildContextString(searchResults);
@@ -40,7 +155,7 @@ export async function POST(req: Request) {
     }));
 
     const result = streamText({
-      model: openrouter(MISTRAL_7B_INSTRUCT_FREE),
+      model: openrouter(AURORA_ALPHA),
       system: systemPrompt,
       messages: [
         {
@@ -62,7 +177,7 @@ export async function POST(req: Request) {
       return new Response(
         JSON.stringify({
           error: 'Invalid request body',
-          details: error.errors,
+          details: error.issues,
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );

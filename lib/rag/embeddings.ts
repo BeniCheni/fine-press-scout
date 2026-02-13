@@ -27,7 +27,7 @@ export async function embedText(text: string): Promise<number[]> {
       );
     }
 
-    return embedding;
+    return embedding as number[];
   } catch (error) {
     console.error('Error embedding text:', error);
     throw error;

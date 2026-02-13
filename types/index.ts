@@ -63,4 +63,5 @@ export interface SearchParams {
   vector: number[];
   limit: number;
   filter?: Record<string, unknown>;
+  sortBy?: 'price_asc' | 'price_desc';
 }

@@ -293,9 +293,8 @@ export async function scrapeSubterranean(): Promise<Document[]> {
           $el.find('p').first().text().trim() ||
           '';
 
-        // author may be in title like "Book Title by Author Name"
-        const authorMatch = title.match(/by\s+(.+)$/i);
-        const author = authorMatch ? authorMatch[1].trim() : undefined;
+        const author =
+          $el.find('.card-title_author').text().trim() || undefined;
 
         const editionType = inferEditionType(title, description);
         const limitation = extractLimitation(`${title} ${description}`);
