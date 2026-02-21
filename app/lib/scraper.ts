@@ -1,8 +1,12 @@
 // Conversation Tree Press is a Shopify store. Data is pulled from the public
 // REST API (/collections/all/products.json) rather than HTML scraping —
 // faster, more stable, and returns structured availability data.
+//
+// @deprecated This standalone class is superseded by
+//   app/lib/scrapers/conversation-tree.ts which extends BaseScraper.
+//   Retained for reference only — do not add new features here.
 import axios from 'axios';
-import { RawBook, CleanedBook, EditionType } from './types';
+import { RawBook, BookDocument, EditionType } from './types';
 
 const PUBLISHER_NAME = 'Conversation Tree Press';
 
@@ -95,26 +99,33 @@ export class ConversationTreeScraper {
   /**
    * Clean and normalize data
    */
-  cleanData(rawBooks: RawBook[]): CleanedBook[] {
+  cleanData(rawBooks: RawBook[]): BookDocument[] {
     return rawBooks.map((raw, index) => {
       const author = this.extractAuthor(raw.title);
-      const edition = this.extractEdition(raw.title);
+      const edition_type = this.extractEdition(raw.title);
       const priceNumeric = this.parsePrice(raw.price);
       const description = this.createDescription(raw, author);
+      const availRaw = raw.availability.toLowerCase();
+      const availability: BookDocument['availability'] =
+        availRaw.includes('sold') || availRaw.includes('out of')
+          ? 'sold_out'
+          : availRaw.includes('pre')
+          ? 'preorder'
+          : 'in_print';
 
       return {
         id: `book_${index}`,
         title: raw.title,
         author,
         price: priceNumeric,
-        availability: raw.availability as 'Available' | 'Sold Out',
-        edition,
+        availability,
+        edition_type,
         description,
         url: raw.url,
         imageUrl: raw.imageUrl,
         publisher: raw.publisher ?? 'Unknown',
         reviews: raw.reviews || 0,
-        scrapedAt: new Date(),
+        scraped_at: new Date().toISOString(),
       };
     });
   }
@@ -189,7 +200,7 @@ export class ConversationTreeScraper {
 /**
  * Quick helper function to run scraper standalone
  */
-export async function runScraper(): Promise<CleanedBook[]> {
+export async function runScraper(): Promise<BookDocument[]> {
   const scraper = new ConversationTreeScraper();
   const rawBooks = await scraper.scrapeAllPages();
   const cleanedBooks = scraper.cleanData(rawBooks);

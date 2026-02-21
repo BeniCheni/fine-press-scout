@@ -27,12 +27,17 @@ export class CentipedeScraper extends BaseScraper {
 
       $('a[href]').each((_, el) => {
         const href = $(el).attr('href') ?? '';
-        // Product links look like: /category/title.htm or full URL
-        if (!href.includes('centipedepress.com') && !href.startsWith('/')) return;
+        // Product-path whitelist: only follow links that look like product pages
+        const isProductPath =
+          href.includes('/books/') ||
+          href.includes('/store/') ||
+          (href.includes('centipedepress.com') && !href.endsWith('books.html') && !href.endsWith('/'));
+        if (!isProductPath) return;
         if (href.includes('books.html') || href === '/') return;
         const url = this.absoluteUrl(href, BASE);
         const title = $(el).text().trim();
-        if (!title || title.length < 3) return;
+        // Minimum 5 characters to skip navigation widgets
+        if (!title || title.length < 5) return;
 
         // Detect out-of-print from surrounding text
         const surrounding = $(el).parent().text().toLowerCase();
@@ -68,13 +73,24 @@ export class CentipedeScraper extends BaseScraper {
       });
       const $ = cheerio.load(data);
 
-      // Price: look for dollar amounts in the page text
-      const bodyText = $('body').text();
-      const priceMatch = bodyText.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
-      const price = priceMatch ? `$${priceMatch[1]}` : '0';
+      const rawBodyText = $('body').text().trim();
+
+      // Price: labeled element first, then anchored regex (last resort)
+      const labeledPrice =
+        $('.price, [class*="price"], [itemprop="price"]').first().text().trim();
+      let price = '0';
+      if (labeledPrice && /\$[\d,]+/.test(labeledPrice)) {
+        price = labeledPrice;
+      } else {
+        // Anchored fallback: look for "Price: $NNN" pattern to reduce noise
+        const anchoredMatch = rawBodyText.match(/price[^\d]*\$(([\d,]+(?:\.\d{2})?))/i);
+        const genericMatch = rawBodyText.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
+        const m = anchoredMatch ?? genericMatch;
+        if (m) price = `$${m[1]}`;
+      }
 
       // Consolidate availability from page text
-      const pageText = bodyText.toLowerCase();
+      const pageText = rawBodyText.toLowerCase();
       const availability =
         entry.availability === 'Sold Out' ||
         pageText.includes('out of print') ||
@@ -93,6 +109,8 @@ export class CentipedeScraper extends BaseScraper {
         imageUrl: this.absoluteUrl(imageUrl, BASE),
         publisher: this.publisherName,
         reviews: 0,
+        // raw_text populated here; base cleanData will carry it through if RawBook exposes it
+        // (stored structurally but not yet part of RawBook interface — see types.ts)
       };
     } catch {
       return {

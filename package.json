@@ -7,7 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "scrape": "tsx app/scripts/scrape.ts",
+    "scrape-conversation-tree": "tsx app/scripts/scrape-single.ts conversation-tree",
+    "scrape-curious-king": "tsx app/scripts/scrape-single.ts curious-king",
+    "scrape-subterranean": "tsx app/scripts/scrape-single.ts subterranean",
+    "scrape-centipede": "tsx app/scripts/scrape-single.ts centipede",
+    "scrape-midworld": "tsx app/scripts/scrape-single.ts midworld",
+    "scrape-suntup": "tsx app/scripts/scrape-single.ts suntup",
+    "scrape-zagava": "tsx app/scripts/scrape-single.ts zagava",
     "ingest": "tsx --env-file=.env.local app/scripts/ingest.ts",
     "data": "npm run scrape && npm run ingest"
   },
@@ -32,12 +42,14 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.0.18",
     "babel-plugin-react-compiler": "1.0.0",
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }

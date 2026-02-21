@@ -24,53 +24,67 @@ export class SubterraneanScraper extends BaseScraper {
 
     const books: RawBook[] = [];
     try {
-      await page.goto(CATALOGUE, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await page.goto(CATALOGUE, { waitUntil: 'networkidle', timeout: 90_000 });
 
-      // Click "Load More" until it disappears
-      let loadMore = true;
-      while (loadMore) {
+      // Click "Load More" until it disappears, waiting for network to settle after each click
+      for (let attempt = 0; attempt < 50; attempt++) {
         const btn = page.locator('a:has-text("Load More"), button:has-text("Load More")').first();
-        if (await btn.isVisible()) {
-          await btn.click();
-          await page.waitForTimeout(1500);
-        } else {
-          loadMore = false;
-        }
+        const visible = await btn.isVisible({ timeout: 3_000 }).catch(() => false);
+        if (!visible) break;
+        await btn.click();
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => page.waitForTimeout(2000));
       }
 
-      // Parse all product cards
-      const cards = await page.locator(
-        'article.productCard, li[data-product-id], .productCard, [class*="product-card"]'
-      ).all();
+      // Extract all card data in one browser-side evaluate — avoids any per-element
+      // Playwright locator timeouts because all DOM queries are synchronous.
+      type CardData = { title: string; href: string; price: string; availability: string; imageUrl: string };
+      const cards: CardData[] = await page.evaluate((base: string) => {
+        const results: CardData[] = [];
+        const seen = new Set<string>();
+        const cardEls = document.querySelectorAll(
+          'article.productCard, [data-product-id], li.product, .productCard, [class*="product-card"]'
+        );
 
-      for (const card of cards) {
-        try {
-          const titleEl = card.locator('h2, h3, [class*="title"]').first();
-          const title = (await titleEl.textContent())?.trim() ?? '';
-          if (!title) continue;
+        for (const card of cardEls) {
+          const titleEl = card.querySelector('h2, h3, [class*="title"]');
+          const title = titleEl?.textContent?.trim() ?? '';
+          if (!title || seen.has(title)) continue;
+          seen.add(title);
 
-          const linkEl = card.locator('a').first();
-          const href = (await linkEl.getAttribute('href')) ?? '';
-          const url = this.absoluteUrl(href, BASE);
+          // Prefer product-path links
+          const productAnchor =
+            (card.querySelector('a[href*="/product/"]') as HTMLAnchorElement | null) ??
+            (card.querySelector('a') as HTMLAnchorElement | null);
+          const href = productAnchor?.href ?? '';
 
-          // Price: look for a price element or parse from link title
-          const priceEl = card.locator('[class*="price"], .price').first();
-          const priceText = ((await priceEl.textContent()) ?? '').trim();
-
-          // Extract lead price from ranges like "$60.00–$850.00"
+          const priceEl = card.querySelector('[class*="price"], .price');
+          const priceText = priceEl?.textContent?.trim() ?? '';
           const priceMatch = priceText.match(/\$?([\d,]+\.?\d*)/);
           const price = priceMatch ? `$${priceMatch[1]}` : '0';
 
-          const soldOutEl = card.locator('.soldOut, [class*="sold-out"], [class*="soldOut"]').first();
-          const availability = (await soldOutEl.count()) > 0 ? 'Sold Out' : 'Available';
+          const soldOut = !!card.querySelector('.soldOut, [class*="sold-out"], [class*="soldOut"]');
+          const availability = soldOut ? 'Sold Out' : 'Available';
 
-          const imgEl = card.locator('img').first();
-          const imageUrl = (await imgEl.getAttribute('src')) ?? '';
+          const imgEl = card.querySelector('img') as HTMLImageElement | null;
+          const imageUrl = imgEl?.src ?? '';
 
-          books.push({ title, price, availability, url, imageUrl, publisher: this.publisherName, reviews: 0 });
-        } catch {
-          // skip malformed cards
+          results.push({ title, href, price, availability, imageUrl });
         }
+        return results;
+      }, BASE);
+
+      for (const c of cards) {
+        const url = c.href.startsWith('http') ? c.href : this.absoluteUrl(c.href, BASE);
+        if (!url) continue;
+        books.push({
+          title: c.title,
+          price: c.price,
+          availability: c.availability,
+          url,
+          imageUrl: c.imageUrl,
+          publisher: this.publisherName,
+          reviews: 0,
+        });
       }
     } finally {
       await browser.close();

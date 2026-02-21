@@ -43,7 +43,7 @@ export function buildContextBlock(
     author: string;
     publisher: string;
     price: number;
-    edition: string;
+    edition_type: string;
     url: string;
     availability: string;
   }>
@@ -52,9 +52,17 @@ export function buildContextBlock(
     return 'Retrieved Titles: none found matching the current filters.';
   }
 
+  // Humanise the canonical availability values for the LLM context
+  const humanAvailability = (v: string): string => {
+    if (v === 'in_print') return 'Available';
+    if (v === 'sold_out') return 'Sold Out';
+    if (v === 'preorder') return 'Pre-Order';
+    return v;
+  };
+
   const lines = books.map((b, i) => {
     const priceStr = b.price > 0 ? `$${b.price.toFixed(2)}` : 'price on request';
-    return `${i + 1}. "${b.title}" by ${b.author} | ${b.publisher} | ${b.edition} edition | ${priceStr} | ${b.availability} | ${b.url}`;
+    return `${i + 1}. "${b.title}" by ${b.author} | ${b.publisher} | ${b.edition_type} edition | ${priceStr} | ${humanAvailability(b.availability)} | ${b.url}`;
   });
 
   return `Retrieved Titles (available now, matching your filters):\n${lines.join('\n')}`;

@@ -1,7 +1,7 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CleanedBook } from '../types';
+import { BookDocument } from '../types';
 import { getEmbedding } from './embed';
 
 const COLLECTION = 'books';
@@ -32,9 +32,13 @@ export async function ensureCollection(client: QdrantClient): Promise<void> {
   // Create payload indexes for efficient filtering
   await Promise.all([
     client.createPayloadIndex(COLLECTION, { field_name: 'price', field_schema: 'float' }),
-    client.createPayloadIndex(COLLECTION, { field_name: 'edition', field_schema: 'keyword' }),
+    client.createPayloadIndex(COLLECTION, { field_name: 'edition_type', field_schema: 'keyword' }),
     client.createPayloadIndex(COLLECTION, { field_name: 'availability', field_schema: 'keyword' }),
     client.createPayloadIndex(COLLECTION, { field_name: 'publisher', field_schema: 'keyword' }),
+    // Full-text index on author enables match.text queries (e.g. "by Laird Barron")
+    client.createPayloadIndex(COLLECTION, { field_name: 'author', field_schema: 'text' }),
+    // genre_tags is a string array — keyword index supports match.any filtering
+    client.createPayloadIndex(COLLECTION, { field_name: 'genre_tags', field_schema: 'keyword' }),
   ]);
   console.log(`Collection "${COLLECTION}" created.`);
 }
@@ -43,7 +47,7 @@ export async function ensureCollection(client: QdrantClient): Promise<void> {
  * Embed every book and upsert into Qdrant.
  * Call from app/scripts/ingest.ts.
  */
-export async function ingestBooks(books: CleanedBook[]): Promise<void> {
+export async function ingestBooks(books: BookDocument[]): Promise<void> {
   const client = getQdrant();
   await ensureCollection(client);
 
@@ -66,15 +70,13 @@ export async function ingestBooks(books: CleanedBook[]): Promise<void> {
             author: book.author,
             price: book.price,
             availability: book.availability,
-            edition: book.edition,
+            edition_type: book.edition_type,
             description: book.description,
             url: book.url,
             imageUrl: book.imageUrl,
             publisher: book.publisher,
             reviews: book.reviews,
-            scrapedAt: book.scrapedAt instanceof Date
-              ? book.scrapedAt.toISOString()
-              : book.scrapedAt,
+            scraped_at: book.scraped_at,
           },
         };
       })
@@ -96,6 +98,6 @@ export async function ingestFromFile(filePath?: string): Promise<void> {
     throw new Error(`books.json not found at ${src}. Run "npm run scrape" first.`);
   }
   const raw = fs.readFileSync(src, 'utf-8');
-  const books = JSON.parse(raw) as CleanedBook[];
+  const books = JSON.parse(raw) as BookDocument[];
   await ingestBooks(books);
 }

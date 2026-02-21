@@ -87,19 +87,30 @@ export class MidworldScraper extends BaseScraper {
       });
       const $ = cheerio.load(data);
 
-      // Squarespace product price is often in .product-price or [data-price]
-      const priceText =
-        $('[class*="product-price"], [data-price], .price').first().text().trim() ||
-        $('body').text().match(/\$\s*([\d,]+(?:\.\d{2})?)/)?.[0] ||
-        '0';
+      const rawBodyText = $('body').text().trim();
 
+      // Squarespace product price — ordered preference: labeled element → anchored regex
+      const labeledPrice =
+        $('[class*="product-price"], [data-price], .price').first().text().trim();
+      let priceText = '0';
+      if (labeledPrice && /[\d]/.test(labeledPrice)) {
+        priceText = labeledPrice;
+      } else {
+        // Anchored regex: look for label context to reduce noise
+        const anchoredMatch = rawBodyText.match(/price[^\d]*\$([\d,]+\.?\d*)/i);
+        const genericMatch = rawBodyText.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
+        const m = anchoredMatch ?? genericMatch;
+        if (m) priceText = `$${m[1]}`;
+      }
+
+      // Always prefer h1 text over catalogue link text for title accuracy
       const title = $('h1').first().text().trim() || entry.title;
 
       const imageUrl =
         $('[class*="product"] img, .ProductItem img').first().attr('src') ||
         entry.imageUrl;
 
-      const pageText = $('body').text().toLowerCase();
+      const pageText = rawBodyText.toLowerCase();
       const availability =
         entry.availability === 'Sold Out' || pageText.includes('sold out')
           ? 'Sold Out'

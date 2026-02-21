@@ -28,10 +28,15 @@ export class CuriousKingScraper extends BaseScraper {
         const href = $(el).attr('href') ?? '';
         const url = this.absoluteUrl(href, BASE);
         // Title lives in nearby h3 or the link text
+        const rawLinkText = $(el).text().trim();
+        // Only accept link text as title when it is long enough and not navigation noise
+        const isValidTitle =
+          rawLinkText.length >= 10 &&
+          !/(view|read|buy|more|shop|here)/i.test(rawLinkText);
         const title =
           $(el).find('h3').text().trim() ||
           $(el).closest('article, li, .book-item').find('h3').text().trim() ||
-          $(el).text().trim();
+          (isValidTitle ? rawLinkText : '');
         const imageUrl =
           $(el).find('img').attr('src') ||
           $(el).closest('article, li, .book-item').find('img').attr('src') ||
@@ -72,6 +77,9 @@ export class CuriousKingScraper extends BaseScraper {
         $('[class*="Price"]').first().text().trim() ||
         '0';
 
+      // Detect GBP currency from raw price text
+      const currency: string | undefined = priceText.includes('\u00a3') ? 'GBP' : undefined;
+
       // Availability: look for add-to-cart button or "sold out" text
       const pageText = $('body').text().toLowerCase();
       const availability =
@@ -94,13 +102,14 @@ export class CuriousKingScraper extends BaseScraper {
         imageUrl: this.absoluteUrl(imageUrl, BASE),
         publisher: this.publisherName,
         reviews: 0,
+        ...(currency ? { currency } : {}),
       };
     } catch {
-      // If we can't get the price, still include the book with price 0
+      // Page request failed — availability is unknown; use 'sold_out' conservatively
       return {
         title: entry.title,
         price: '0',
-        availability: 'Available',
+        availability: 'sold_out',
         url: entry.url,
         imageUrl: entry.imageUrl,
         publisher: this.publisherName,

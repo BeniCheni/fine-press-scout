@@ -6,6 +6,7 @@ import { RawBook } from '../types';
 import { BaseScraper } from './base';
 
 interface ShopifyVariant {
+  title: string;
   price: string;
   available: boolean;
 }
@@ -51,19 +52,26 @@ export class ConversationTreeScraper extends BaseScraper {
       });
       if (!Array.isArray(data.products) || data.products.length === 0) return [];
 
-      return data.products.map((p) => {
-        const v = p.variants?.[0];
-        const priceCents = v ? parseFloat(v.price) : 0;
-        return {
-          title: p.title,
-          price: `$${(priceCents / 100).toFixed(2)}`,
-          availability: v?.available === false ? 'Sold Out' : 'Available',
-          url: `https://conversationtreepress.com/products/${p.handle}`,
-          imageUrl: this.normalizeShopifyImage(p.images?.[0]?.src ?? ''),
-          publisher: this.publisherName,
-          reviews: 0,
-        };
-      });
+      const books: RawBook[] = [];
+      for (const p of data.products) {
+        // Emit one RawBook per variant so edition/price variants are preserved
+        for (const v of p.variants ?? []) {
+          const priceCents = parseFloat(v.price);
+          // Append variant title when it carries edition information
+          const editionSuffix =
+            v.title && v.title !== 'Default Title' ? ` – ${v.title}` : '';
+          books.push({
+            title: `${p.title}${editionSuffix}`,
+            price: `$${(priceCents / 100).toFixed(2)}`,
+            availability: v.available === false ? 'Sold Out' : 'Available',
+            url: `https://conversationtreepress.com/products/${p.handle}`,
+            imageUrl: this.normalizeShopifyImage(p.images?.[0]?.src ?? ''),
+            publisher: this.publisherName,
+            reviews: 0,
+          });
+        }
+      }
+      return books;
     } catch (err) {
       console.error(`Conversation Tree Press page ${page} error:`, err);
       return [];

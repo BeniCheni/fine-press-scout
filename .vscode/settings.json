@@ -1,3 +1,9 @@
 {
-    "markdown.validate.enabled": true
+    "markdown.validate.enabled": true,
+    "chat.tools.terminal.autoApprove": {
+        "/^python3 -c \"\nimport json, datetime, os\np='/Users/benicheni/fine-press-rag/public/data/books\\.json'\nmtime = os\\.path\\.getmtime\\(p\\)\nprint\\('Modified:', datetime\\.datetime\\.fromtimestamp\\(mtime\\)\\)\nd=json\\.load\\(open\\(p\\)\\)\npubs=\\{\\}\nfor b in d: pubs\\[b\\.get\\('publisher','\\?'\\)\\]=pubs\\.get\\(b\\.get\\('publisher','\\?'\\),0\\)\\+1\nprint\\('Total:', len\\(d\\)\\)\nfor k,v in sorted\\(pubs\\.items\\(\\)\\): print\\(' ', k\\+':', v\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
 }
